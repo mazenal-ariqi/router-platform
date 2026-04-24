@@ -30,21 +30,38 @@ def get_routers(db: Session = Depends(get_db)):
 
 # إضافة راوتر
 @app.post("/routers")
-def add_router(name: str, ip: str, db: Session = Depends(get_db)):
-    router = Router(name=name, ip=ip)
+def add_router(
+    name: str,
+    ip: str,
+    username: str,
+    password: str,
+    db: Session = Depends(get_db)
+):
+    router = Router(
+        name=name,
+        ip=ip,
+        username=username,
+        password=password
+    )
     db.add(router)
     db.commit()
     db.refresh(router)
     return router
 
 
+    
+@app.get("/router/{router_id}")
+def get_router_info(router_id: int, db: Session = Depends(get_db)):
+    router = db.query(Router).filter(Router.id == router_id).first()
 
-@app.get("/router-info")
-def get_router_info(ip: str, username: str, password: str):
+    if not router:
+        return {"error": "Router not found"}
+
     result = run_ssh_command(
-        ip=ip,
-        username=username,
-        password=password,
+        ip=router.ip,
+        username=router.username,
+        password=router.password,
         command="ubus call system board"
     )
+
     return result
