@@ -65,3 +65,14 @@ def get_router_info(router_id: int, db: Session = Depends(get_db)):
     )
 
     return result
+
+
+routers_status = {}
+
+@app.post("/agent/update")
+def update_router(data: dict):
+    router_id = data.get("router_id")
+
+    routers_status[router_id] = data
+
+    return {"status": "received"}
