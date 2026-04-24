@@ -1,19 +1,37 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
+from sqlalchemy.orm import Session
+
+from database import engine, Base, SessionLocal
+from models import Router
 
 app = FastAPI()
 
-routers = []
+# إنشاء الجداول
+Base.metadata.create_all(bind=engine)
 
+# الاتصال بقاعدة البيانات
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# الصفحة الرئيسية
 @app.get("/")
 def home():
     return {"message": "API is running 🚀"}
 
+# عرض الراوترات
 @app.get("/routers")
-def get_routers():
-    return routers
+def get_routers(db: Session = Depends(get_db)):
+    return db.query(Router).all()
 
+# إضافة راوتر
 @app.post("/routers")
-def add_router(name: str, ip: str):
-    router = {"name": name, "ip": ip}
-    routers.append(router)
-    return {"status": "added", "router": router}
+def add_router(name: str, ip: str, db: Session = Depends(get_db)):
+    router = Router(name=name, ip=ip)
+    db.add(router)
+    db.commit()
+    db.refresh(router)
+    return router
