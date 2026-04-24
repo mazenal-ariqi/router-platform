@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from database import engine, Base, SessionLocal
 from models import Router
+from ssh_client import run_ssh_command
 
 app = FastAPI()
 
@@ -35,3 +36,15 @@ def add_router(name: str, ip: str, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(router)
     return router
+
+
+
+@app.get("/router-info")
+def get_router_info(ip: str, username: str, password: str):
+    result = run_ssh_command(
+        ip=ip,
+        username=username,
+        password=password,
+        command="ubus call system board"
+    )
+    return result
