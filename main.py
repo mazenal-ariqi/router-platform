@@ -7,6 +7,9 @@ from ssh_client import run_ssh_command
 
 app = FastAPI()
 
+# 🔐 مفتاح الحماية
+SECRET_KEY = "my-secret-key"
+
 # إنشاء الجداول
 Base.metadata.create_all(bind=engine)
 
@@ -18,7 +21,11 @@ def get_db():
     finally:
         db.close()
 
+
+# =========================
 # الصفحة الرئيسية
+# =========================
+
 @app.get("/")
 def home():
     return {"message": "API is running 🚀"}
@@ -28,12 +35,11 @@ def home():
 # الراوترات (CRUD)
 # =========================
 
-# عرض الراوترات
 @app.get("/routers")
 def get_routers(db: Session = Depends(get_db)):
     return db.query(Router).all()
 
-# إضافة راوتر
+
 @app.post("/routers")
 def add_router(
     name: str,
@@ -78,18 +84,62 @@ def get_router_info(router_id: int, db: Session = Depends(get_db)):
 
 
 # =========================
-# AGENT SYSTEM (الأهم 🔥)
+# AGENT SYSTEM (🔥 الأساس)
 # =========================
 
-# تخزين الحالات
 routers_status = {}
 
-# استقبال بيانات من الراوتر
-@app.post("/agent/update")
-def update_router(data: dict):
-    router_id = str(data.get("router_id"))
 
-    routers_status[router_id] = data
+@app.post("/agent/register")
+def register_router(data: dict, db: Session = Depends(get_db)):
+    if data.get("key") != SECRET_KEY:
+        return {"error": "unauthorized"}
+
+    mac = data.get("mac")
+    name = data.get("name", "unknown")
+
+    if not mac:
+        return {"error": "MAC is required"}
+
+    router = db.query(Router).filter(Router.mac == mac).first()
+
+    if router:
+        return {"router_id": router.id}
+
+    new_router = Router(
+        name=name,
+        ip="unknown",
+        username="root",
+        password="root",
+        mac=mac
+    )
+
+    db.add(new_router)
+    db.commit()
+    db.refresh(new_router)
+
+    return {"router_id": new_router.id}
+
+
+@app.post("/agent/update")
+def update_router(data: dict, db: Session = Depends(get_db)):
+    if data.get("key") != SECRET_KEY:
+        return {"error": "unauthorized"}
+
+    router_id = data.get("router_id")
+
+    if not router_id:
+        return {"error": "router_id required"}
+
+    # حفظ الحالة في الذاكرة
+    routers_status[str(router_id)] = data
+
+    # تحديث IP في قاعدة البيانات
+    router = db.query(Router).filter(Router.id == router_id).first()
+
+    if router:
+        router.ip = data.get("ip", router.ip)
+        db.commit()
 
     return {"status": "received"}
 
@@ -100,7 +150,7 @@ def update_router(data: dict):
 
 commands = {}
 
-# ✅ تعديل مهم: حذف الأمر بعد استلامه (مهم جدًا)
+
 @app.get("/agent/command/{router_id}")
 def get_command(router_id: str):
     cmd = commands.get(router_id)
@@ -111,7 +161,6 @@ def get_command(router_id: str):
     return cmd or {}
 
 
-# إرسال أمر من السيرفر للراوتر
 @app.post("/agent/command/{router_id}")
 def send_command(router_id: str, cmd: dict):
     commands[router_id] = cmd
@@ -122,12 +171,11 @@ def send_command(router_id: str, cmd: dict):
 # STATUS APIs
 # =========================
 
-# كل الحالات
 @app.get("/agent/status")
 def get_all_status():
     return routers_status
 
-# حالة راوتر واحد
+
 @app.get("/agent/status/{router_id}")
 def get_router_status(router_id: str):
     return routers_status.get(router_id, {"error": "not found"})
