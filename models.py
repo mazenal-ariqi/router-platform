@@ -7,3 +7,5 @@ class Router(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
     ip = Column(String)
+    username = Column(String)
+    password = Column(String)
